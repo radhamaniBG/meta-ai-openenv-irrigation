@@ -1,0 +1,9 @@
+name: "SmartFarm-OpenEnv"
+version: "1.0.0"
+tasks:
+  - id: "survival"
+    difficulty: "easy"
+  - id: "efficiency"
+    difficulty: "medium"
+  - id: "drought"
+    difficulty: "hard"
