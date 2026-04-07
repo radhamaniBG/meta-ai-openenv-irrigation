@@ -1,7 +1,7 @@
 version: "1.0"
-name: "smartfarm-env"
+name: "smart-irrigation-env"
 entry_point: "main:app"
-description: "Precision irrigation environment for Meta OpenEnv"
+description: "Precision agriculture simulation for Meta OpenEnv"
 tasks:
   - id: "survival"
     difficulty: "easy"

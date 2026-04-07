@@ -1,13 +1,14 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class Action(BaseModel):
     water_volume: float
-    fertilizer_type: int
+    fertilizer_type: Optional[int] = 0  # Make optional with a default
 
 class Observation(BaseModel):
     soil_moisture: float
     crop_health: float
     is_dead: bool
-    nitrogen_level: float = 0.0
-    weather_forecast: int = 0
+    # Add any extra fields your env uses here
+    nitrogen_level: Optional[float] = 0.0 
+    weather_forecast: Optional[int] = 0
