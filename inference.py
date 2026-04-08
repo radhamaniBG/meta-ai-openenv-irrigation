@@ -1,90 +1,72 @@
 import os
 import requests
-import textwrap
 from typing import List, Optional
 from openai import OpenAI
 
-# 1. MANDATORY ENVIRONMENT VARIABLES & DEFAULTS
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+# 5) Code Structure Checklist: Environment Variables & Defaults
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api-inference.huggingface.co/v1/")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3-8B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
-API_KEY = HF_TOKEN  # Using HF_TOKEN as the API Key
 
-# Meta Benchmark Details
-TASK_NAME = "survival"
-BENCHMARK = "smart-irrigation"
+# Initialize OpenAI Client (Checklist #5)
+client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+
 SPACE_URL = "https://shreyamani-meta-ai-openenv-farm.hf.space"
-MAX_STEPS = 5
-MAX_TOTAL_REWARD = 5.0  # Used for score normalization (Sum of rewards / Max possible)
+TASK_NAME = "survival"
 
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-
-# 2. LOGGING UTILITIES (MATCHING SAMPLE EXACTLY)
-def log_start(task: str, env: str, model: str) -> None:
+def log_start(task: str, env: str, model: str):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
-def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
-    error_val = error if error else "null"
-    done_val = str(done).lower()
-    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
+def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]):
+    # Checklist #6: Lowercase booleans and 2 decimal rewards
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error or 'null'}", flush=True)
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]):
+    # Checklist #6: Lowercase booleans
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
-# 3. INFERENCE LOGIC
 def run_inference():
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
-    
-    rewards = []
-    steps_taken = 0
-    success = False
-    
+    log_start(TASK_NAME, "smart-irrigation", MODEL_NAME)
+    rewards, steps_taken, success = [], 0, False
+    final_score = 0.0
+
     try:
-        # Reset the environment
+        # Reset Env
         res = requests.post(f"{SPACE_URL}/reset").json()
-        obs = res
-        
-        for step in range(1, MAX_STEPS + 1):
-            # Prompt the LLM
-            prompt = f"Current soil moisture is {obs['soil_moisture']}. Provide a water volume between 0.0 and 1.0. Output only the number."
-            
+        obs = res.get("observation", res) # Handle different API structures
+
+        for step in range(1, 6):
+            # LLM Call via OpenAI Client
+            prompt = f"Moisture is {obs.get('soil_moisture')}. Water volume (0.0-1.0)? Just the number."
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=10
             )
+            action = completion.choices[0].message.content.strip()
             
-            try:
-                action_text = completion.choices[0].message.content.strip()
-                action_val = float(action_text)
-            except:
-                action_val = 0.5 # Default fallback
+            # Environment Step
+            response = requests.post(f"{SPACE_URL}/step", json={"water_volume": float(action or 0.5)}).json()
             
-            # Perform Step
-            response = requests.post(f"{SPACE_URL}/step", json={"water_volume": action_val, "fertilizer_type": 0}).json()
-            
-            reward = response["reward"]
-            done = response["done"]
-            obs = response["observation"]
+            reward = response.get("reward", 0.0)
+            done = response.get("done", False)
+            obs = response.get("observation", {})
             
             rewards.append(reward)
             steps_taken = step
+            log_step(step, action, reward, done, None)
             
-            log_step(step=step, action=str(action_val), reward=reward, done=done, error=None)
-            
-            if done:
-                break
-                
-        # Calculate Final Score (Normalized to 0.0 - 1.0)
-        final_score = sum(rewards) / MAX_TOTAL_REWARD
-        final_score = min(max(final_score, 0.0), 1.0)
+            if done: break
+        
+        final_score = sum(rewards) / len(rewards) if rewards else 0.0
         success = final_score > 0.5
 
     except Exception as e:
-        print(f"[DEBUG] Error during inference: {e}")
+        print(f"Error: {e}")
     finally:
-        log_end(success=success, steps=steps_taken, score=final_score, rewards=rewards)
+        # Checklist #6: Must always print [END]
+        log_end(success, steps_taken, final_score, rewards)
 
 if __name__ == "__main__":
     run_inference()
