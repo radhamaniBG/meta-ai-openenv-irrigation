@@ -1,3 +1,13 @@
+import sys
+import subprocess
+
+# Standard Meta OpenEnv imports
+try:
+    import requests
+except ImportError:
+    # This forces an installation if the validator's environment missed it
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+    import requests
 import os
 import requests
 from typing import List, Optional
